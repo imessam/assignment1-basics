@@ -41,11 +41,9 @@ class BPE:
             bytes_count[tuple([ch.encode() for ch in word])] = count
 
         return bytes_count
+    
 
-
-    def _merge(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[Tuple[bytes, ...], int]:
-        
-        bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
+    def _extract_pairs(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[bytes, int]:
 
         pairs = {}
 
@@ -56,14 +54,20 @@ class BPE:
                 if idx > 0 and idx < len(token_bytes):
 
                     pair = token_bytes[idx-1] + token_bytes[idx]
-                    
+
                     if pair not in pairs:
                         pairs[pair] = 0
 
                     pairs[pair] += count
 
+        return pairs
 
-        print(f"Pairs : {pairs}")
+
+    def _merge(self, pairs : Dict[bytes, int]) -> Dict[Tuple[bytes, ...], int]:
+        
+        bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
+
+        # max_pair_idx = 
 
         return bytes_count_merged
 
@@ -80,7 +84,11 @@ class BPE:
         bytes_count = self._counts_to_bytes(counts)
         print(f"Bytes Count : {bytes_count}")
 
-        bytes_count_merged = self._merge(bytes_count)
+        pairs = self._extract_pairs(bytes_count)
+        print(f"Pairs : {pairs}")
+
+        bytes_count_merged = self._merge(pairs)
+
 
         return vocab
 
