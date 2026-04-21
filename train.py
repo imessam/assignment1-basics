@@ -61,15 +61,51 @@ class BPE:
                     pairs[pair] += count
 
         return pairs
+    
+    def _extract_max_pair(self, pairs : Dict[bytes, int]) -> Tuple[bytes, int]:
+
+        max_pair_idx = b""
+        max_count = 0
+
+        for pair, count in pairs.items():
+            if count > max_count:
+                max_pair_idx = pair
+                max_count = count
+            elif count == max_count:
+                max_pair_idx = pair if pair > max_pair_idx else max_pair_idx
+        
+        
+        return max_pair_idx, max_count
 
 
-    def _merge(self, pairs : Dict[bytes, int]) -> Dict[Tuple[bytes, ...], int]:
+    def _merge(self, pairs : Dict[bytes, int],  bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[Tuple[bytes, ...], int]:
         
         bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
 
-        # max_pair_idx = 
+        max_pair, _ = self._extract_max_pair(pairs)
 
-        return bytes_count_merged
+        for token_bytes, count in bytes_count.items():
+
+            new_token_bytes = []
+
+            for idx, b in enumerate(token_bytes):
+
+                if idx < len(token_bytes)-1:
+
+                    pair = token_bytes[idx] + token_bytes[idx+1]
+
+                    if pair == max_pair:
+                        new_token_bytes.append(pair)
+                    elif idx == len(token_bytes)-2:
+                        new_token_bytes.append(token_bytes[idx])
+                        new_token_bytes.append(token_bytes[idx+1])
+                    else : 
+                        new_token_bytes.append(token_bytes[idx])
+            
+            bytes_count_merged[tuple(new_token_bytes)] = count
+
+
+        return  bytes_count_merged
 
     def train(self, corpus : List[str]) -> Dict:
 
@@ -84,10 +120,15 @@ class BPE:
         bytes_count = self._counts_to_bytes(counts)
         print(f"Bytes Count : {bytes_count}")
 
-        pairs = self._extract_pairs(bytes_count)
-        print(f"Pairs : {pairs}")
+        for _ in range(6):
 
-        bytes_count_merged = self._merge(pairs)
+            pairs = self._extract_pairs(bytes_count)
+            print(f"Pairs : {pairs}")
+
+            bytes_count_merged = self._merge(pairs, bytes_count)
+            print(f"Merged : {bytes_count_merged}")
+
+            bytes_count = bytes_count_merged
 
 
         return vocab
