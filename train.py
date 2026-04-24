@@ -74,7 +74,6 @@ class BPE:
             elif count == max_count:
                 max_pair_idx = pair if pair > max_pair_idx else max_pair_idx
         
-        
         return max_pair_idx, max_count
 
 
@@ -82,25 +81,31 @@ class BPE:
         
         bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
 
-        max_pair, _ = self._extract_max_pair(pairs)
+        max_pair, pair_count = self._extract_max_pair(pairs)
+        print(f"Max pair : {max_pair}, pair count : {pair_count}")
+
 
         for token_bytes, count in bytes_count.items():
 
             new_token_bytes = []
 
-            for idx, b in enumerate(token_bytes):
+            num_tokens = len(token_bytes)
+            idx = 0
 
-                if idx < len(token_bytes)-1:
+            while idx < num_tokens:
 
+                pair = None
+
+                if (idx < len(token_bytes) -1):
                     pair = token_bytes[idx] + token_bytes[idx+1]
 
-                    if pair == max_pair:
-                        new_token_bytes.append(pair)
-                    elif idx == len(token_bytes)-2:
-                        new_token_bytes.append(token_bytes[idx])
-                        new_token_bytes.append(token_bytes[idx+1])
-                    else : 
-                        new_token_bytes.append(token_bytes[idx])
+                if pair and pair == max_pair:
+                    new_token_bytes.append(pair)
+                    idx += 1
+                else : 
+                    new_token_bytes.append(token_bytes[idx])
+
+                idx += 1
             
             bytes_count_merged[tuple(new_token_bytes)] = count
 
@@ -120,7 +125,7 @@ class BPE:
         bytes_count = self._counts_to_bytes(counts)
         print(f"Bytes Count : {bytes_count}")
 
-        for _ in range(6):
+        for _ in range(15):
 
             pairs = self._extract_pairs(bytes_count)
             print(f"Pairs : {pairs}")
