@@ -9,9 +9,14 @@ examples = [
 class BPE:
 
     def __init__(self):
-        self._vocab = []
+
         self._tok_EOS = "<|endoftext|>"
-        self._specials = {256 : self._tok_EOS}
+        self._specials = {0 : self._tok_EOS}
+
+        self._vocab = [self._tok_EOS] +  [chr(i) for i in range(255)]
+        
+        self._str_to_idx = {s : idx for (idx, s) in enumerate(self._vocab)}
+        self._idx_to_str = {idx : s for (idx, s) in enumerate(self._vocab)}
 
     def _pretokenize(self, corpus : List[str]) -> List[str]:
 
@@ -77,12 +82,14 @@ class BPE:
         return max_pair_idx, max_count
 
 
-    def _merge(self, pairs : Dict[bytes, int],  bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[Tuple[bytes, ...], int]:
+    def _merge(self, pairs : Dict[bytes, int],  bytes_count : Dict[Tuple[bytes, ...], int],  merges : List[bytes]) -> Dict[Tuple[bytes, ...], int]:
         
         bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
 
         max_pair, pair_count = self._extract_max_pair(pairs)
         print(f"Max pair : {max_pair}, pair count : {pair_count}")
+
+        merges.append(max_pair)
 
 
         for token_bytes, count in bytes_count.items():
@@ -112,9 +119,7 @@ class BPE:
 
         return  bytes_count_merged
 
-    def train(self, corpus : List[str]) -> Dict:
-
-        vocab = {}
+    def train(self, corpus : List[str]) -> Tuple[List[str], List[bytes]]:
 
         pre_tokens : List = self._pretokenize(corpus = corpus)
         print(f"Pre-tokens : {pre_tokens} ")
@@ -125,25 +130,29 @@ class BPE:
         bytes_count = self._counts_to_bytes(counts)
         print(f"Bytes Count : {bytes_count}")
 
-        for _ in range(15):
+        merges : List[bytes] = []
+
+        for _ in range(6):
 
             pairs = self._extract_pairs(bytes_count)
             print(f"Pairs : {pairs}")
 
-            bytes_count_merged = self._merge(pairs, bytes_count)
-            print(f"Merged : {bytes_count_merged}")
+            bytes_count_merged = self._merge(pairs, bytes_count, merges)
+            print(f"Merged : {bytes_count_merged}, merges : {merges}")
 
             bytes_count = bytes_count_merged
 
 
-        return vocab
+        return self._vocab, merges
 
 
 if __name__ == "__main__":
 
     bpe = BPE()
 
-    bpe.train(examples)
+    vocab, merges = bpe.train(examples)
+
+    print(f"Vocab : {vocab}, merges : {merges}")
 
     
     
