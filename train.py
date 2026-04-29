@@ -1,3 +1,5 @@
+import regex as re
+
 from typing import Dict, List, Tuple
 
 examples = [
@@ -17,13 +19,16 @@ class BPE:
         
         self._str_to_idx = {s : idx for (idx, s) in enumerate(self._vocab)}
         self._idx_to_str = {idx : s for (idx, s) in enumerate(self._vocab)}
+        self._idx_to_byte = {idx : bytes(s, "utf-8") for (idx, s) in enumerate(self._vocab)}
 
     def _pretokenize(self, corpus : List[str]) -> List[str]:
+
+        PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
         pre_tokens = []
 
         for sentence in corpus:
-            pre_tokens.extend(sentence.split(" "))
+            pre_tokens.extend(re.findall(PAT, sentence))
 
         return pre_tokens
 
@@ -48,7 +53,7 @@ class BPE:
         return bytes_count
     
 
-    def _extract_pairs(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[bytes, int]:
+    def _extract_pairs(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[Tuple[bytes, bytes], int]:
 
         pairs = {}
 
@@ -58,7 +63,7 @@ class BPE:
 
                 if idx > 0 and idx < len(token_bytes):
 
-                    pair = token_bytes[idx-1] + token_bytes[idx]
+                    pair = (token_bytes[idx-1] , token_bytes[idx])
 
                     if pair not in pairs:
                         pairs[pair] = 0
@@ -67,22 +72,24 @@ class BPE:
 
         return pairs
     
-    def _extract_max_pair(self, pairs : Dict[bytes, int]) -> Tuple[bytes, int]:
+    def _extract_max_pair(self, pairs : Dict[Tuple[bytes,bytes], int]) -> Tuple[Tuple[bytes,bytes], int]:
 
-        max_pair_idx = b""
+        max_pair : Tuple = ()
         max_count = 0
 
         for pair, count in pairs.items():
             if count > max_count:
-                max_pair_idx = pair
+                max_pair = pair
                 max_count = count
             elif count == max_count:
-                max_pair_idx = pair if pair > max_pair_idx else max_pair_idx
+                pair_str = pair[0] + pair[1]
+                max_pair_str = max_pair[0] + max_pair[1]
+                max_pair = pair if pair_str > max_pair_str else max_pair
         
-        return max_pair_idx, max_count
+        return max_pair, max_count
 
 
-    def _merge(self, pairs : Dict[bytes, int],  bytes_count : Dict[Tuple[bytes, ...], int],  merges : List[bytes]) -> Dict[Tuple[bytes, ...], int]:
+    def _merge(self, pairs : Dict[Tuple[bytes, bytes], int],  bytes_count : Dict[Tuple[bytes, ...], int],  merges : List[Tuple[bytes, bytes]]) -> Dict[Tuple[bytes, ...], int]:
         
         bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
 
@@ -91,6 +98,7 @@ class BPE:
 
         merges.append(max_pair)
 
+        max_pair_str = max_pair[0] + max_pair[1]
 
         for token_bytes, count in bytes_count.items():
 
@@ -106,7 +114,7 @@ class BPE:
                 if (idx < len(token_bytes) -1):
                     pair = token_bytes[idx] + token_bytes[idx+1]
 
-                if pair and pair == max_pair:
+                if pair and pair == max_pair_str:
                     new_token_bytes.append(pair)
                     idx += 1
                 else : 
@@ -119,7 +127,7 @@ class BPE:
 
         return  bytes_count_merged
 
-    def train(self, corpus : List[str]) -> Tuple[List[str], List[bytes]]:
+    def train(self, corpus : List[str]) -> Tuple[Dict[int, bytes], List[Tuple[bytes, bytes]]]:
 
         pre_tokens : List = self._pretokenize(corpus = corpus)
         print(f"Pre-tokens : {pre_tokens} ")
@@ -130,7 +138,7 @@ class BPE:
         bytes_count = self._counts_to_bytes(counts)
         print(f"Bytes Count : {bytes_count}")
 
-        merges : List[bytes] = []
+        merges : List[Tuple[bytes, bytes]] = []
 
         for _ in range(6):
 
@@ -143,7 +151,7 @@ class BPE:
             bytes_count = bytes_count_merged
 
 
-        return self._vocab, merges
+        return self._idx_to_byte, merges
 
 
 if __name__ == "__main__":
