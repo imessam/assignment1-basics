@@ -107,9 +107,9 @@ class BPE:
         return bytes_count
     
 
-    def _extract_pairs(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Tuple[Tuple[bytes,bytes], int]:
+    def _extract_pairs(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Tuple[Dict[Tuple[bytes,bytes], int], Tuple[bytes,bytes], int]:
 
-        pairs = {}
+        pairs : Dict[Tuple[bytes,bytes], int] = {}
         max_pair : Tuple = ()
         max_count = 0
 
@@ -137,11 +137,11 @@ class BPE:
                         max_pair = pair if pair_str > max_pair_str else max_pair
         
 
-        return max_pair, max_count
+        return pairs, max_pair, max_count
     
     def _extract_max_pair(self, pairs : Dict[Tuple[bytes,bytes], int]) -> Tuple[Tuple[bytes,bytes], int]:
 
-        max_pair : Tuple = ()
+        max_pair : Tuple[bytes,bytes] = (b'', b'')
         max_count = 0
 
         for pair, count in pairs.items():
@@ -149,14 +149,14 @@ class BPE:
                 max_pair = pair
                 max_count = count
             elif count == max_count:
-                pair_str = pair[0] + pair[1]
-                max_pair_str = max_pair[0] + max_pair[1]
+                pair_str = pair[0].decode() + pair[1].decode()
+                max_pair_str = max_pair[0].decode() + max_pair[1].decode()
                 max_pair = pair if pair_str > max_pair_str else max_pair
         
         return max_pair, max_count
 
 
-    def _merge(self, max_pair : Tuple[bytes,bytes] , pair_count :int ,  bytes_count : Dict[Tuple[bytes, ...], int],  merges : List[Tuple[bytes, bytes]]) -> Dict[Tuple[bytes, ...], int]:
+    def _merge(self, pairs : Dict[Tuple[bytes,bytes], int],  max_pair : Tuple[bytes,bytes] , pair_count :int ,  bytes_count : Dict[Tuple[bytes, ...], int],  merges : List[Tuple[bytes, bytes]]) -> Dict[Tuple[bytes, ...], int]:
         
         bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
 
@@ -208,8 +208,10 @@ class BPE:
             merged_str = merged.decode()
 
             if merged_str not in self._str_to_idx:
-                self._vocab.append(merged_str)
                 idx = len(self._vocab)
+                
+                self._vocab.append(merged_str)
+                
 
                 self._str_to_idx[merged_str] = idx
                 self._idx_to_str[idx] =   merged_str
@@ -246,12 +248,12 @@ class BPE:
             old_size = new_size
 
             t1_inner = time.time()
-            max_pair, pair_count = self._extract_pairs(bytes_count)
+            pairs, max_pair, pair_count = self._extract_pairs(bytes_count)
             t2_inner = time.time()
             # print(f"Pairs :  , elapsed : {t2_inner-t1_inner}")
 
             t1_inner = time.time()
-            bytes_count_merged = self._merge(max_pair, pair_count , bytes_count, merges)
+            bytes_count_merged = self._merge(pairs, max_pair, pair_count , bytes_count, merges)
             t2_inner = time.time()
             # print(f"merges : , elapsed : {t2_inner-t1_inner}")
 
