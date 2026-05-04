@@ -68,7 +68,7 @@ class BPE:
         self._tok_EOS = "<|endoftext|>"
         self._specials = {0 : self._tok_EOS}
 
-        self._vocab = [self._tok_EOS] +  [chr(i) for i in range(255)]
+        self._vocab = [self._tok_EOS] +  [chr(i) for i in range(256)]
         
         self._str_to_idx = {s : idx for (idx, s) in enumerate(self._vocab)}
         self._idx_to_str = {idx : s for (idx, s) in enumerate(self._vocab)}
@@ -90,7 +90,7 @@ class BPE:
         words_count = {}
 
         for token in pre_tokens:
-            token_stripped = token.strip()
+            token_stripped = token
             if token_stripped not in words_count:
                 words_count[token_stripped] = 0
             words_count[token_stripped] += 1
@@ -211,8 +211,8 @@ class BPE:
                 self._vocab.append(merged_str)
                 idx = len(self._vocab)
 
-                # self._str_to_idx[merged_str] = idx
-                # self._idx_to_str[idx] =   merged_str
+                self._str_to_idx[merged_str] = idx
+                self._idx_to_str[idx] =   merged_str
                 self._idx_to_byte[idx] = merged
 
         return self._idx_to_byte     
@@ -271,7 +271,6 @@ class BPE:
         # self._idx_to_byte = self._update_vocab(merges, vocab_size)
         # t2 = time.time()
         # print(f"vocab {self._idx_to_byte} :  , elapsed : {t2-t1}")
-
 
         return self._idx_to_byte, merges
     
