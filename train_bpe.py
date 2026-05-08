@@ -68,11 +68,10 @@ class BPE:
         self._tok_EOS = "<|endoftext|>"
         self._specials = {0 : self._tok_EOS}
 
-        self._vocab = [self._tok_EOS] +  [chr(i) for i in range(256)]
-        
-        self._str_to_idx = {s : idx for (idx, s) in enumerate(self._vocab)}
-        self._idx_to_str = {idx : s for (idx, s) in enumerate(self._vocab)}
-        self._idx_to_byte = {idx : bytes(s, "utf-8") for (idx, s) in enumerate(self._vocab)}
+        self._vocab : List[bytes] = [bytes(self._tok_EOS, "utf-8")] +  [bytes([i]) for i in range(256)]
+
+        self._byte_to_idx = {b : idx for (idx, b) in enumerate(self._vocab)}
+        self._idx_to_byte : Dict[int, bytes] = {idx : b for (idx, b) in enumerate(self._vocab)}
 
     def _pretokenize(self, corpus : List[str]) -> List[str]:
 
@@ -132,9 +131,9 @@ class BPE:
                         max_pair = pair
                         max_count = curr_count
                     elif curr_count == max_count:
-                        pair_str = pair[0] + pair[1]
-                        max_pair_str = max_pair[0] + max_pair[1]
-                        max_pair = pair if pair_str > max_pair_str else max_pair
+                        if (pair[0] > max_pair[0]) or ((pair[0] == max_pair[0]) and (pair[1] > max_pair[1])):
+                            max_pair = pair
+                            max_count = curr_count
         
 
         return pairs, max_pair, max_count
@@ -164,7 +163,7 @@ class BPE:
         # print(f"Max pair : {max_pair}, pair count : {pair_count}")
 
         if pair_count == 0:
-            return bytes_count_merged
+            return bytes_count
 
         merges.append(max_pair)
 
@@ -197,25 +196,22 @@ class BPE:
 
         return  bytes_count_merged
     
-    def _update_vocab(self, merges : List[Tuple[bytes, bytes]], vocab_size : int) -> Dict[int, bytes]:
+    def _update_vocab(self, merge : Tuple[bytes, bytes]) -> Dict[int, bytes]:
 
-        for merge in merges:
+        # for merge in merges:
 
-            if len(self._vocab) >= vocab_size:
-                break
+        #     if len(self._idx_to_byte) >= vocab_size:
+        #         break
         
-            merged = merge[0] + merge[1]
-            merged_str = merged.decode()
+        merged = merge[0] + merge[1]
 
-            if merged_str not in self._str_to_idx:
-                idx = len(self._vocab)
-                
-                self._vocab.append(merged_str)
-                
+        if merged not in self._byte_to_idx:
+            idx = len(self._idx_to_byte)
+            
+            # self._vocab.append(merged)
 
-                self._str_to_idx[merged_str] = idx
-                self._idx_to_str[idx] =   merged_str
-                self._idx_to_byte[idx] = merged
+            self._byte_to_idx[merged] = idx
+            self._idx_to_byte[idx] = merged
 
         return self._idx_to_byte     
 
@@ -240,10 +236,10 @@ class BPE:
         merges : List[Tuple[bytes, bytes]] = []
 
         old_size = -1
-        new_size = len(merges)
+        new_size = len(self._byte_to_idx)
 
         t1 = time.time()
-        while (old_size != new_size) and len(self._vocab) < vocab_size:
+        while (old_size != new_size) and (new_size < vocab_size):
             
             old_size = new_size
 
@@ -255,16 +251,16 @@ class BPE:
             t1_inner = time.time()
             bytes_count_merged = self._merge(pairs, max_pair, pair_count , bytes_count, merges)
             t2_inner = time.time()
-            # print(f"merges : , elapsed : {t2_inner-t1_inner}")
+            # print(f"merges :  , elapsed : {t2_inner-t1_inner}")
 
             t1_inner = time.time()
-            self._idx_to_byte = self._update_vocab(merges, vocab_size)
+            self._idx_to_byte = self._update_vocab(merges[-1])
             t2_inner = time.time()
-            # print(f"vocab : , elapsed : {t2_inner-t1_inner}")
+            # print(f"vocab : , elapsed : {t2_inner-t1_inner} \n\n")
 
             bytes_count = bytes_count_merged
 
-            new_size = len(merges)
+            new_size = len(self._byte_to_idx)
 
         t2 = time.time()
         print(f", elapsed : {t2-t1}")
