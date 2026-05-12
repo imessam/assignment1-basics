@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import regex as re
-from typing import BinaryIO
+from typing import BinaryIO, Union
 from typing import Dict, List, Tuple
 
 examples = [
@@ -184,65 +184,80 @@ class BPE:
     
     def _update_vocab(self, merge : Tuple[bytes, bytes]) -> Dict[int, bytes]:
 
-        # for merge in merges:
-
-        #     if len(self._idx_to_byte) >= vocab_size:
-        #         break
         
         merged = merge[0] + merge[1]
 
         if merged not in self._byte_to_idx:
             idx = len(self._idx_to_byte)
             
-            # self._vocab.append(merged)
-
             self._byte_to_idx[merged] = idx
             self._idx_to_byte[idx] = merged
 
         return self._idx_to_byte     
     
-    def _merge_enhanced(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[int, bytes] :
+    def _merge_enhanced(self, bytes_count : Dict[Tuple[bytes, ...], int], merges : List[Tuple[bytes, bytes]]) -> None :
 
         pairs : Dict[bytes, Dict] = {}
-        max_pair : Tuple = ()
+        max_pair : Union[Tuple[bytes, ...], None] = None
         max_count = 0
 
-        for i, (token_bytes, count) in  enumerate(bytes_count.items()):
+        for token_bytes, count in bytes_count.items():
+            # print(f"pairs : {pairs}")
 
-            for idx in range(len(token_bytes)):
+            for idx in range(len(token_bytes)-1):
 
-                if idx > 0 and idx < len(token_bytes):
+                pair = (token_bytes[idx] , token_bytes[idx + 1])
 
-                    pair = (token_bytes[idx-1] , token_bytes[idx])
+                pair_conc = pair[0] + pair[1]
 
-                    pair_conc = pair[0] + pair[1]
+                if pair_conc not in pairs:
+                    pairs[pair_conc] = {}
+                    pairs[pair_conc]["count"] = 0
+                    pairs[pair_conc]["indices"] = {}
+                
+                if token_bytes not in pairs[pair_conc]["indices"]:
+                    pairs[pair_conc]["indices"][token_bytes] = []
 
-                    if pair_conc not in pairs:
-                        pairs[pair_conc]["count"] = 0
-                    
-                    if i not in pairs[pair_conc]["indices"]:
-                        pairs[pair_conc]["indices"][i] = []
+                pairs[pair_conc]["count"] += count
+                pairs[pair_conc]["indices"][token_bytes].append(idx)
 
-                    pairs[pair_conc]["count"] += count
-                    pairs[pair_conc]["indices"][i].append(idx)
+                curr_count = pairs[pair_conc]["count"]
 
-                    curr_count = pairs[pair_conc]["count"]
-
-                    if curr_count > max_count:
+                if curr_count > max_count:
+                    max_pair = pair
+                    max_count = curr_count
+                elif curr_count == max_count and max_pair:
+                    if (pair[0] > max_pair[0]) or ((pair[0] == max_pair[0]) and (pair[1] > max_pair[1])):
                         max_pair = pair
                         max_count = curr_count
-                    elif curr_count == max_count:
-                        if (pair[0] > max_pair[0]) or ((pair[0] == max_pair[0]) and (pair[1] > max_pair[1])):
-                            max_pair = pair
-                            max_count = curr_count
-            
+
+        if max_pair:
+            merges.append(max_pair)
+
             max_pair_st = max_pair[0] + max_pair[1]
+            merged = max_pair[0] + max_pair[1]
+            
+            for token_bytes, indices in pairs[max_pair_st]["indices"].items():
+                
+                token_bytes_list = list(token_bytes)
 
-        for token_idx, indices in pairs[max_pair_st]["indices"].items():
+                for idx in indices:
+                    # print(token_bytes_list, idx, merged)
+                    token_bytes_list[idx] = merged
+                    token_bytes_list.pop(idx + 1)
+
+                bytes_count[tuple(token_bytes_list)] = bytes_count[token_bytes]
+                bytes_count.pop(token_bytes)
             
 
+            if merged not in self._byte_to_idx:
 
-        return self._idx_to_byte   
+                idx = len(self._idx_to_byte)
+                
+                self._byte_to_idx[merged] = idx
+                self._idx_to_byte[idx] = merged
+
+        return
     
     def train(self, corpus : List[str], vocab_size : int) -> Tuple[Dict[int, bytes], List[Tuple[bytes, bytes]]]:
 
@@ -272,22 +287,27 @@ class BPE:
             
             old_size = new_size
 
-            t1_inner = time.time()
+            # t1_inner = time.time()
             max_pair, pair_count = self._extract_pairs(bytes_count)
-            t2_inner = time.time()
-            # print(f"Pairs :  , elapsed : {t2_inner-t1_inner}")
+            # t2_inner = time.time()
+            # # print(f"Pairs :  , elapsed : {t2_inner-t1_inner}")
 
-            t1_inner = time.time()
+            # t1_inner = time.time()
             bytes_count_merged = self._merge(max_pair, pair_count , bytes_count, merges)
-            t2_inner = time.time()
-            # print(f"merges :  , elapsed : {t2_inner-t1_inner}")
+            # t2_inner = time.time()
+            # # print(f"merges :  , elapsed : {t2_inner-t1_inner}")
 
-            t1_inner = time.time()
+            # t1_inner = time.time()
             self._idx_to_byte = self._update_vocab(merges[-1])
-            t2_inner = time.time()
-            # print(f"vocab : , elapsed : {t2_inner-t1_inner} \n\n")
+            # t2_inner = time.time()
+            # # print(f"vocab : , elapsed : {t2_inner-t1_inner} \n\n")
 
             bytes_count = bytes_count_merged
+
+            # t1_inner = time.time()
+            # self._merge_enhanced(bytes_count, merges)
+            # t2_inner = time.time()
+            # print(f"merges :  , elapsed : {t2_inner-t1_inner}")
 
             new_size = len(self._byte_to_idx)
 
@@ -295,9 +315,9 @@ class BPE:
         print(f", elapsed : {t2-t1}")
 
         # t1 = time.time()
-        # self._idx_to_byte = self._update_vocab(merges, vocab_size)
+        # self._idx_to_byte = self._update_vocab(merges)
         # t2 = time.time()
-        # print(f"vocab {self._idx_to_byte} :  , elapsed : {t2-t1}")
+        # print(f"vocab {self._idx_to_byte} ")
 
         return self._idx_to_byte, merges
     
