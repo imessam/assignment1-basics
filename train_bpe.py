@@ -69,6 +69,7 @@ class BPE:
         self._specials = {0 : self._tok_EOS}
 
         self._vocab : List[bytes] = [bytes(self._tok_EOS, "utf-8")] +  [bytes([i]) for i in range(256)]
+        self._merges : List[Tuple[bytes, bytes]] = []
 
         self._byte_to_idx = {b : idx for (idx, b) in enumerate(self._vocab)}
         self._idx_to_byte : Dict[int, bytes] = {idx : b for (idx, b) in enumerate(self._vocab)}
@@ -96,7 +97,7 @@ class BPE:
 
         return words_count
     
-    def _counts_to_bytes(self, words_count : Dict[str, int]) -> Dict[Tuple[bytes, ...], int]:
+    def _words_to_bytes(self, words_count : Dict[str, int]) -> Dict[Tuple[bytes, ...], int]:
 
         bytes_count : dict[tuple[bytes, ...], int] = {}
 
@@ -112,80 +113,42 @@ class BPE:
         max_pair : Tuple = ()
         max_count = 0
 
-        for token_bytes, count in bytes_count.items():
+        for word_bytes, count in bytes_count.items():
 
-            for idx, b in enumerate(token_bytes):
+            for idx in range(len(word_bytes) - 1):
 
-                if idx > 0 and idx < len(token_bytes):
+                pair = (word_bytes[idx] , word_bytes[idx + 1])
+                pair_conc = pair[0] + pair[1]
 
-                    pair = (token_bytes[idx-1] , token_bytes[idx])
-                    pair_conc = pair[0] + pair[1]
+                if pair_conc not in pairs:
+                    pairs[pair_conc] = 0
 
-                    if pair_conc not in pairs:
-                        pairs[pair_conc] = 0
+                pairs[pair_conc] += count
 
-                    pairs[pair_conc] += count
+                curr_count = pairs[pair_conc]
 
-                    curr_count = pairs[pair_conc]
-
-                    if curr_count > max_count:
-                        max_pair = pair
-                        max_count = curr_count
-                    elif curr_count == max_count:
-                        if (pair[0] > max_pair[0]) or ((pair[0] == max_pair[0]) and (pair[1] > max_pair[1])):
-                            max_pair = pair
-                            max_count = curr_count
+                if curr_count > max_count:
+                    max_pair = pair
+                    max_count = curr_count
+                elif curr_count == max_count:
+                    max_pair = max([pair, max_pair])
+                    max_count = curr_count
         
 
         return max_pair, max_count
     
 
 
-    def _merge(self,  max_pair : Tuple[bytes,bytes] , pair_count : int ,  bytes_count : Dict[Tuple[bytes, ...], int],  merges : List[Tuple[bytes, bytes]]) -> Dict[Tuple[bytes, ...], int]:
+    def _merge(self,  max_pair : Tuple[bytes,bytes] , pair_count : int ,  bytes_count : Dict[Tuple[bytes, ...], int]) -> Dict[Tuple[bytes, ...], int]:
         
         bytes_count_merged : Dict[Tuple[bytes, ...], int] = {}
-
-        # max_pair, pair_count = self._extract_max_pair(pairs)
-        # print(f"Max pair : {max_pair}, pair count : {pair_count}")
 
         if pair_count == 0:
             return bytes_count
 
-        merges.append(max_pair)
+        self._merges.append(max_pair)
 
-        max_pair_str = max_pair[0] + max_pair[1]
-
-        for token_bytes, count in bytes_count.items():
-
-            new_token_bytes = []
-
-            num_tokens = len(token_bytes)
-            idx = 0
-
-            while idx < num_tokens:
-
-                pair = None
-
-                if (idx < len(token_bytes) -1):
-                    pair = token_bytes[idx] + token_bytes[idx+1]
-
-                if pair and pair == max_pair_str:
-                    new_token_bytes.append(pair)
-                    idx += 1
-                else : 
-                    new_token_bytes.append(token_bytes[idx])
-
-                idx += 1
-            
-            bytes_count_merged[tuple(new_token_bytes)] = count
-
-
-        return  bytes_count_merged
-    
-    def _update_vocab(self, merge : Tuple[bytes, bytes]) -> Dict[int, bytes]:
-
-        
-        merged = merge[0] + merge[1]
+        merged = max_pair[0] + max_pair[1]
 
         if merged not in self._byte_to_idx:
             idx = len(self._idx_to_byte)
@@ -193,7 +156,33 @@ class BPE:
             self._byte_to_idx[merged] = idx
             self._idx_to_byte[idx] = merged
 
-        return self._idx_to_byte     
+        for word_bytes, count in bytes_count.items():
+
+            new_word_bytes = []
+
+            num_bytes = len(word_bytes)
+            idx = 0
+
+            while idx < num_bytes:
+
+                pair = None
+
+                if idx < (num_bytes - 1):
+                    pair = word_bytes[idx] + word_bytes[idx+1]
+
+                if pair and pair == merged:
+                    new_word_bytes.append(pair)
+                    idx += 1
+                else : 
+                    new_word_bytes.append(word_bytes[idx])
+
+                idx += 1
+            
+            bytes_count_merged[tuple(new_word_bytes)] = count
+
+
+        return  bytes_count_merged
+       
     
     def _merge_enhanced(self, bytes_count : Dict[Tuple[bytes, ...], int], merges : List[Tuple[bytes, bytes]]) -> None :
 
@@ -273,11 +262,9 @@ class BPE:
         # print(f"Counts :  , elapsed : {t2-t1}")
 
         t1 = time.time()
-        bytes_count = self._counts_to_bytes(counts)
+        bytes_count = self._words_to_bytes(counts)
         t2 = time.time()
         # print(f"Bytes Count :  , elapsed : {t2-t1}")
-
-        merges : List[Tuple[bytes, bytes]] = []
 
         old_size = -1
         new_size = len(self._byte_to_idx)
@@ -287,39 +274,26 @@ class BPE:
             
             old_size = new_size
 
-            # t1_inner = time.time()
+            t1_inner = time.time()
             max_pair, pair_count = self._extract_pairs(bytes_count)
-            # t2_inner = time.time()
-            # # print(f"Pairs :  , elapsed : {t2_inner-t1_inner}")
+            t2_inner = time.time()
+            # print(f"Pairs :  , elapsed : {t2_inner-t1_inner}")
 
-            # t1_inner = time.time()
-            bytes_count_merged = self._merge(max_pair, pair_count , bytes_count, merges)
-            # t2_inner = time.time()
-            # # print(f"merges :  , elapsed : {t2_inner-t1_inner}")
-
-            # t1_inner = time.time()
-            self._idx_to_byte = self._update_vocab(merges[-1])
-            # t2_inner = time.time()
-            # # print(f"vocab : , elapsed : {t2_inner-t1_inner} \n\n")
+            t1_inner = time.time()
+            bytes_count_merged = self._merge(max_pair, pair_count , bytes_count)
+            t2_inner = time.time()
+            # print(f"bytes_count_merged :    , elapsed : {t2_inner-t1_inner}")
 
             bytes_count = bytes_count_merged
-
-            # t1_inner = time.time()
-            # self._merge_enhanced(bytes_count, merges)
-            # t2_inner = time.time()
-            # print(f"merges :  , elapsed : {t2_inner-t1_inner}")
 
             new_size = len(self._byte_to_idx)
 
         t2 = time.time()
         print(f", elapsed : {t2-t1}")
 
-        # t1 = time.time()
-        # self._idx_to_byte = self._update_vocab(merges)
-        # t2 = time.time()
         # print(f"vocab {self._idx_to_byte} ")
 
-        return self._idx_to_byte, merges
+        return self._idx_to_byte, self._merges
     
 
 def train_bpe(input_path : str | os.PathLike, vocab_size : int, special_tokens : List[str]) -> Tuple[dict[int, bytes], List[Tuple[bytes, bytes]]]:
@@ -366,8 +340,6 @@ def train_bpe(input_path : str | os.PathLike, vocab_size : int, special_tokens :
             
             vocab, merges = bpe.train(chunk_wo_spc_tok, vocab_size)
 
-            break
-        
         # print(f"vocab : {vocab}")
             
     return vocab, merges

@@ -136,6 +136,15 @@ class Snapshot[A: (np.ndarray, Tensor)]:
         with open(snapshot_path, "rb") as f:
             expected_data = pickle.load(f)
 
+        if isinstance(actual, dict) and isinstance(expected_data, dict) and "merges" in actual: 
+            merges_act = actual["merges"]
+            merges_exp = expected_data["merges"]
+
+            for i in range(len(merges_act)):
+
+                if merges_act[i] != merges_exp[i]:
+                    print(f"idx : {i}, act : {merges_act[i]} , exp : {merges_exp[i]}")
+
         if isinstance(actual, dict):
             for key in actual:
                 if key not in expected_data:
