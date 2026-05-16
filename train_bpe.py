@@ -102,7 +102,7 @@ class BPE:
         bytes_count : dict[tuple[bytes, ...], int] = {}
 
         for word, count in words_count.items():
-            bytes_count[tuple([ch.encode() for ch in word])] = count
+            bytes_count[tuple([bytes(ch, "utf-8") for ch in word])] = count
 
         return bytes_count
     
@@ -327,7 +327,7 @@ def train_bpe(input_path : str | os.PathLike, vocab_size : int, special_tokens :
     merges : list[tuple[bytes, bytes]] = []
 
     with open(input_path, "rb") as f:
-        num_processes = 4
+        num_processes = 1
         boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
         print(f"boundaries : {boundaries}")
         # The following is a serial implementation, but you can parallelize this
@@ -350,8 +350,11 @@ if __name__ == "__main__":
 
     input_path = sys.argv[1]
 
-    # train_bpe(input_path, 16000, ["<|endoftext|>"])
+    vocab, merges = train_bpe(input_path, 1000, ["<|endoftext|>"])
 
-    bpe = BPE()
+    print(f"vocab : {vocab}")
+    print(f"merges : {merges}")
 
-    bpe.train(examples, 160000)
+    # bpe = BPE()
+
+    # bpe.train(examples, 160000)
