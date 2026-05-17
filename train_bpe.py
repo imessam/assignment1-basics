@@ -1,7 +1,10 @@
+from concurrent.futures import ProcessPoolExecutor
 import os
 import sys
 import time
 import regex as re
+
+from collections import Counter
 from typing import BinaryIO, Union
 from typing import Dict, List, Tuple
 
@@ -80,39 +83,37 @@ class BPE:
 
         PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-        pre_tokens = []
+        pre_tokens_bytes = []
 
         for sentence in corpus:
             for match in re.finditer(PAT, sentence):
-                pre_tokens.append(match.group())
+                pre_tokens_bytes.append(match.group().encode())
 
-        return pre_tokens
+        return pre_tokens_bytes
 
-    def _count(self, pre_tokens : List[str]) -> Dict[str, int]:
+    def _count(self, pre_tokens_bytes : List[str]) -> Counter:
         
-        words_count = {}
+        words_bytes_count = Counter()
 
-        for token in pre_tokens:
-            token_stripped = token
-            if token_stripped not in words_count:
-                words_count[token_stripped] = 0
-            words_count[token_stripped] += 1
+        for token in pre_tokens_bytes:
+            words_bytes_count[token] += 1
 
-        return words_count
+        return words_bytes_count
+
     
-    def _words_to_bytes(self, words_count : Dict[str, int]) -> Dict[Tuple[bytes, ...], int]:
+    def _words_to_bytes(self, words_count : Counter) -> Dict[Tuple[bytes, ...], int]:
 
         bytes_count : dict[tuple[bytes, ...], int] = {}
 
         for word, count in words_count.items():
-            bytes_count[tuple([ch.encode() for ch in word])] = count
+            bytes_count[tuple([bytes([ch]) for ch in word])] = count
 
         return bytes_count
     
 
     def _extract_pairs(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> Tuple[Tuple[bytes,bytes], int]:
 
-        pairs : Dict[bytes, int] = {}
+        pairs = Counter()
         max_pair : Tuple = ()
         max_count = 0
 
@@ -121,25 +122,24 @@ class BPE:
             for idx in range(len(word_bytes) - 1):
 
                 pair = (word_bytes[idx] , word_bytes[idx + 1])
-                pair_conc = pair[0] + pair[1]
+                # pair_conc = pair[0] + pair[1]
 
-                if pair_conc not in pairs:
-                    pairs[pair_conc] = 0
+                # if pair_conc not in pairs:
+                #     pairs[pair_conc] = 0
 
-                pairs[pair_conc] += count
+                pairs[pair] += count
 
-                curr_count = pairs[pair_conc]
+                curr_count = pairs[pair]
 
                 if curr_count > max_count:
                     max_pair = pair
                     max_count = curr_count
                 elif curr_count == max_count:
-                    print(f"max [{pair} , {max_pair}] ")
                     max_pair = max([pair, max_pair])
                     max_count = curr_count
                     
         
-        print(f"idx : {self._merge_idx} , Pairs : {pairs} , max_pair : {max_pair}, max_count : {max_count}")
+        # print(f"idx : {self._merge_idx} , Pairs : {pairs} , max_pair : {max_pair}, max_count : {max_count}")
 
         return max_pair, max_count
     
@@ -190,25 +190,23 @@ class BPE:
         return  bytes_count_merged
        
 
+    def pretokenize(self, corpus : List[str]) -> Counter:
 
+        pre_tokens_bytes = self._pretokenize(corpus)
+        # print(f"pre_tokens_bytes : {pre_tokens_bytes}")
+
+        words_bytes_count = self._count(pre_tokens_bytes)
+        # print(f"words_bytes_count : {words_bytes_count}")
+
+        return words_bytes_count
     
-    def train(self, corpus : List[str], vocab_size : int) -> Tuple[Dict[int, bytes], List[Tuple[bytes, bytes]]]:
-
-        t1 = time.time()
-        pre_tokens : List = self._pretokenize(corpus = corpus)
-        t2 = time.time()
-        print(f"Pre-tokens {pre_tokens} : , elapsed : {t2-t1} ")
+    def train(self, words_bytes_count : Counter, vocab_size : int) -> Tuple[Dict[int, bytes], List[Tuple[bytes, bytes]]]:
 
 
         t1 = time.time()
-        counts : Dict[str, int] = self._count(pre_tokens)
+        bytes_count = self._words_to_bytes(words_bytes_count)
         t2 = time.time()
-        print(f"Counts :  {counts} , elapsed : {t2-t1}")
-
-        t1 = time.time()
-        bytes_count = self._words_to_bytes(counts)
-        t2 = time.time()
-        print(f"Bytes Count : {bytes_count}  , elapsed : {t2-t1}")
+        print(f"Bytes Count : elapsed : {t2-t1}")
 
         old_size = -1
         new_size = len(self._byte_to_idx)
@@ -221,7 +219,7 @@ class BPE:
             t1_inner = time.time()
             max_pair, pair_count = self._extract_pairs(bytes_count)
             t2_inner = time.time()
-            print(f"max_pair : {max_pair} , pair_count : {pair_count}  , elapsed : {t2_inner-t1_inner}")
+            # print(f"max_pair :  elapsed : {t2_inner-t1_inner}")
 
 
             if pair_count == 0:
@@ -230,7 +228,7 @@ class BPE:
             t1_inner = time.time()
             bytes_count_merged = self._merge(max_pair, pair_count , bytes_count)
             t2_inner = time.time()
-            print(f"bytes_count_merged :  {bytes_count_merged} , elapsed : {t2_inner-t1_inner}")
+            # print(f"bytes_count_merged :  {bytes_count_merged} , elapsed : {t2_inner-t1_inner}")
 
             bytes_count = bytes_count_merged
 
@@ -239,8 +237,6 @@ class BPE:
 
         t2 = time.time()
         print(f", elapsed : {t2-t1}")
-
-        # print(f"vocab {self._idx_to_byte} ")
 
         return self._idx_to_byte, self._merges
     
@@ -276,19 +272,35 @@ def train_bpe(input_path : str | os.PathLike, vocab_size : int, special_tokens :
     merges : list[tuple[bytes, bytes]] = []
 
     with open(input_path, "rb") as f:
-        num_processes = 1
+        num_processes = 4
         boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
         # The following is a serial implementation, but you can parallelize this
         # by sending each start/end pair to a set of processes.
-        for start, end in zip(boundaries[:-1], boundaries[1:]):
-            f.seek(start)
-            chunk = f.read(end - start).decode("utf-8", errors="ignore")
-            # Run pre-tokenization on your chunk and store the counts for each pre-token
-            chunk_wo_spc_tok = re.split(re.escape("|".join(special_tokens)), chunk)
-            
-            vocab, merges = bpe.train(chunk_wo_spc_tok, vocab_size)
 
-        # print(f"vocab : {vocab}")
+        words_bytes_count = Counter()
+       
+
+        all_chunks = []
+
+        for start, end in zip(boundaries[:-1], boundaries[1:]):
+                f.seek(start)
+                chunk = f.read(end - start).decode("utf-8", errors="ignore")
+                # Run pre-tokenization on your chunk and store the counts for each pre-token
+                chunk_wo_spc_tok = re.split(re.escape("|".join(special_tokens)), chunk)
+
+                all_chunks.append(chunk_wo_spc_tok)
+        
+        words_bytes_count_all = Counter()
+
+        with ProcessPoolExecutor(max_workers=num_processes) as executor:
+
+            results = executor.map(bpe.pretokenize, all_chunks)
+
+            for result in results:
+                words_bytes_count_all.update(result)
+
+        vocab, merges = bpe.train(words_bytes_count_all, vocab_size)
+
             
     return vocab, merges
 
@@ -298,11 +310,13 @@ if __name__ == "__main__":
 
     input_path = sys.argv[1]
 
-    # vocab, merges = train_bpe(input_path, 1000, ["<|endoftext|>"])
+    vocab, merges = train_bpe(input_path, 1000, ["<|endoftext|>"])
 
-    bpe = BPE()
+    # bpe = BPE()
 
-    vocab, merges = bpe.train(examples, 160000)
+    # words_bytes_count = bpe.pretokenize(examples)
 
-    print(f"vocab : {vocab}")
-    print(f"merges : {merges}")
+    # vocab, merges = bpe.train(words_bytes_count, 160000)
+
+    # print(f"vocab : {vocab}")
+    # print(f"merges : {merges}")
