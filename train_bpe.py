@@ -1,11 +1,14 @@
-from concurrent.futures import ProcessPoolExecutor
 import os
 import sys
 import time
+import datetime
+import pickle
+
 import regex as re
 
 from collections import Counter
-from typing import BinaryIO, Union
+from concurrent.futures import ProcessPoolExecutor
+from typing import BinaryIO
 from typing import Dict, List, Tuple
 
 examples = [
@@ -196,9 +199,16 @@ class BPE:
 
     def pretokenize(self, corpus : List[str]) -> Counter:
 
-        pre_tokens_bytes = self._pretokenize(corpus)
+        print(f"Pretokinizing ...")
 
+        t1 = time.perf_counter()
+
+        pre_tokens_bytes = self._pretokenize(corpus)
         words_bytes_count = self._count(pre_tokens_bytes)
+
+        t2 = time.perf_counter()
+
+        print(f"pretokenization done, elapsed : {(t2-t1) / 60.0} minutes")
 
         return words_bytes_count
     
@@ -206,13 +216,14 @@ class BPE:
 
         bytes_count = self._words_to_bytes(words_bytes_count)
 
-        t1 = time.time()
+        t1 = time.perf_counter()
+
         self._merge_enhanced(bytes_count)
-
         self._idx_to_byte : Dict[int, bytes] = {idx : b for idx, b in enumerate(self._vocab)}
-        t2 = time.time()
 
-        # print(f", elapsed : {t2-t1}")
+        t2 = time.perf_counter()
+
+        print(f"Train done, elapsed : {(t2-t1) / 60.0} minutes")
 
         return self._idx_to_byte, self._merges
     
@@ -242,10 +253,17 @@ def train_bpe(input_path : str | os.PathLike, vocab_size : int, special_tokens :
             <token2>. The merges should be ordered by order of creation.
     '''
 
+    output_path = os.path.join("output","trained_vocab")
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
     bpe = BPE(vocab_size=vocab_size)
 
     vocab : Dict[int, bytes] = {}
     merges : list[tuple[bytes, bytes]] = []
+
+    t1 = time.perf_counter()
 
     with open(input_path, "rb") as f:
         num_processes = 4
@@ -269,9 +287,24 @@ def train_bpe(input_path : str | os.PathLike, vocab_size : int, special_tokens :
             for result in results:
                 words_bytes_count_all.update(result)
 
-        vocab, merges = bpe.train(words_bytes_count_all)
+    t2 = time.perf_counter()
 
-            
+    print(f"pretokenization the whole corpus done, elapsed : {(t2-t1) / 60.0} minutes")
+
+    vocab, merges = bpe.train(words_bytes_count_all)
+
+    input_file_name = ""
+    if type(input_path) is str:
+        input_file_name = input_path.split("/")[-1].split(".")[0]
+
+    curr_time = datetime.datetime.now().strftime("%Y%m%d%H%M")
+
+    out_file_name = f"trained_{input_file_name}_{curr_time}.pkl"
+
+    with open(os.path.join(output_path, out_file_name), "wb") as f:
+
+        pickle.dump(vocab, f)
+
     return vocab, merges
 
 
@@ -281,6 +314,3 @@ if __name__ == "__main__":
     input_path = sys.argv[1]
 
     vocab, merges = train_bpe(input_path, 500, ["<|endoftext|>"])
-
-    print(f"vocab : {vocab}")
-    print(f"merges : {merges}")
