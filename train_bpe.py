@@ -6,6 +6,7 @@ import pickle
 
 import regex as re
 
+from tqdm.auto import tqdm
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from typing import BinaryIO
@@ -92,7 +93,7 @@ class BPE:
 
         pre_tokens_bytes = []
 
-        for sentence in corpus:
+        for sentence in tqdm(corpus, desc = "Pretokenizing ..."):
             for match in re.finditer(PAT, sentence):
                 pre_tokens_bytes.append(match.group().encode())
 
@@ -102,7 +103,7 @@ class BPE:
         
         words_bytes_count = Counter()
 
-        for token in pre_tokens_bytes:
+        for token in tqdm(pre_tokens_bytes, desc = "Counting ..."):
             words_bytes_count[token] += 1
 
         return words_bytes_count
@@ -112,7 +113,7 @@ class BPE:
 
         bytes_count : dict[tuple[bytes, ...], int] = {}
 
-        for word, count in words_count.items():
+        for word, count in tqdm(words_count.items(), desc= "Word to bytes ..."):
             bytes_count[tuple([bytes([ch]) for ch in word])] = count
 
         return bytes_count
@@ -146,13 +147,10 @@ class BPE:
     
     
     def _merge_enhanced(self, bytes_count : Dict[Tuple[bytes, ...], int]) -> None:
-
-        bytes_count_old = bytes_count.copy()
-        bytes_count_new = {}
         
         while self._vocab_idx < self._vocab_size:
 
-            max_pair, pair_count = self._extract_pairs(bytes_count_old)
+            max_pair, pair_count = self._extract_pairs(bytes_count)
 
             if pair_count == 0:
                 break
@@ -167,12 +165,15 @@ class BPE:
                 self._vocab[self._vocab_idx] = merged
                 self._vocab_idx += 1
             
-            bytes_count_new = {}
-            for word_bytes, count in bytes_count_old.items():
+            word_bytes_list = list(bytes_count.keys())
+            for word_bytes in word_bytes_list:
+
+                count = bytes_count[word_bytes]
 
                 new_word_bytes = []
 
                 num_bytes = len(word_bytes)
+                is_found = False
                 i = 0
 
                 while i < num_bytes:
@@ -185,15 +186,16 @@ class BPE:
                     if pair and pair == merged:
                         new_word_bytes.append(pair)
                         i += 1
+                        is_found = True
                     else : 
                         new_word_bytes.append(word_bytes[i])
 
                     i += 1
-                
-                bytes_count_new[tuple(new_word_bytes)] = count
-            
-            bytes_count_old = bytes_count_new
 
+                if is_found:
+                    bytes_count.pop(word_bytes)
+                    bytes_count[tuple(new_word_bytes)] = count
+            
         return
         
 
@@ -312,5 +314,6 @@ def train_bpe(input_path : str | os.PathLike, vocab_size : int, special_tokens :
 if __name__ == "__main__":
 
     input_path = sys.argv[1]
+    max_vocab = int(sys.argv[2])
 
-    vocab, merges = train_bpe(input_path, 500, ["<|endoftext|>"])
+    vocab, merges = train_bpe(input_path, max_vocab, ["<|endoftext|>"])
