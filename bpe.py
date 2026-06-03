@@ -1,4 +1,6 @@
+import os
 import time
+import pickle
 
 import regex as re
 
@@ -40,7 +42,7 @@ class BPE:
             self._merges = merges
 
 
-    def _pretokenize(self, corpus : List[str]) -> List[bytes]:
+    def _pretokenize(self, corpus : Iterable[str]) -> List[bytes]:
 
         PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -163,10 +165,19 @@ class BPE:
     @classmethod
     def from_files(cls, vocab_filepath : str, merges_filepath : str , special_tokens : Union[None, List[str]] = None):
 
-        return cls
-
-
+        if not os.path.exists(vocab_filepath) or not os.path.exists(merges_filepath):
+            return BPE()
         
+        vocab : Dict[int, bytes] = {}
+        with open(vocab_filepath, "rb") as file:
+            vocab = pickle.load(file)
+
+        merges: List[Tuple[bytes, bytes]] = []
+        with open(merges_filepath, "rb") as file:
+            merges = pickle.load(file)
+
+        return BPE(vocab, merges, special_tokens)
+
 
     def pretokenize(self, corpus : List[str]) -> Counter:
 
@@ -221,7 +232,7 @@ class BPE:
         print(f"pretokens_bytes : {pretokens_bytes}")
 
 
-        return encodings
+        return encodings.__iter__()
     
     def decode(self, ids: list[int]) -> str :
 
