@@ -24,6 +24,7 @@ class BPE:
 
         self._merges : List[Tuple[bytes, bytes]] = []
         self._idx_to_byte : Dict[int, bytes] = {}
+        self._byte_to_idx : Dict[bytes, int] = {}
 
         if special_tokens:
             self._special_tokens.extend(special_tokens)
@@ -40,6 +41,8 @@ class BPE:
         else:
             self._idx_to_byte = vocab
             self._merges = merges
+
+            self._byte_to_idx = {b : idx for idx, b in self._idx_to_byte.items()}
 
 
     def _pretokenize(self, corpus : Iterable[str]) -> List[bytes]:
@@ -162,6 +165,49 @@ class BPE:
             
         return
     
+    def _merge_encodings(self, encodings : List[Tuple[bytes, ...]]) -> List[Tuple[bytes, ...]]:
+
+        encodings_old = encodings.copy()
+        encodings_merged : List[Tuple[bytes, ...]] = []
+
+        is_merged = True
+
+        while is_merged:
+
+            is_merged = False
+            encodings_merged.clear()
+
+            for pretoken in encodings_old:
+
+                new_pretoken = []
+                num_bytes = len(pretoken)
+
+                idx = 0
+
+                while idx < num_bytes:
+
+                    pair_byte = None
+
+                    if idx < (len(pretoken) - 1) :
+
+                        pair_byte = pretoken[idx] + pretoken[idx + 1]
+
+                    if pair_byte and pair_byte in self._byte_to_idx:
+                            new_pretoken.append(pair_byte)
+                            idx += 1
+                            is_merged = True
+                    else:
+                        new_pretoken.append(pretoken[idx])
+
+                    idx += 1
+
+                encodings_merged.append(tuple(new_pretoken))
+            
+            encodings_old = encodings_merged.copy()
+
+
+        return encodings_merged
+    
     @classmethod
     def from_files(cls, vocab_filepath : str, merges_filepath : str , special_tokens : Union[None, List[str]] = None):
 
@@ -231,6 +277,10 @@ class BPE:
         pretokens_bytes = self._pretokens_to_bytes(pretokens)
         print(f"pretokens_bytes : {pretokens_bytes}")
 
+        encodings_merged = self._merge_encodings(pretokens_bytes)
+        print(f"encodings_merged : {encodings_merged}")
+
+        encodings = [self._byte_to_idx[b] for encoding in encodings_merged for b in encoding]
 
         return encodings.__iter__()
     
