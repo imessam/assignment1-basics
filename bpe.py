@@ -286,11 +286,22 @@ class BPE:
     
     def decode(self, ids: list[int]) -> str :
 
-        print("Decoding ...")
+        print(f"Decoding {ids} ...")
 
-        decoded = ""
+        tokens = b""
 
-        return decoded
+        for id in ids:
+            byte_token = self._idx_to_byte.get(id)
+
+            if byte_token is None:
+                print(f"{id} not found ...")
+                continue
+
+            tokens += byte_token
+
+        decoded_str = tokens.decode(errors="replace")
+            
+        return decoded_str
 
 
 
