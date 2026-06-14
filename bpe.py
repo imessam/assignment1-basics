@@ -262,23 +262,23 @@ class BPE:
         encodings = []
 
 
-        return encodings
+        return list(self.encode_iterable([text].__iter__()))
 
 
-    def encode_iterbale(self, iterable : Iterable[str]) -> Iterator[int]:
+    def encode_iterable(self, iterable : Iterable[str]) -> Iterator[int]:
 
         print("Encoding ... ")
 
         encodings : List[int] = []
 
         pretokens = self._pretokenize(iterable)
-        print(f"pretokens : {pretokens}")
+        # print(f"pretokens : {pretokens}")
 
         pretokens_bytes = self._pretokens_to_bytes(pretokens)
-        print(f"pretokens_bytes : {pretokens_bytes}")
+        # print(f"pretokens_bytes : {pretokens_bytes}")
 
         encodings_merged = self._merge_encodings(pretokens_bytes)
-        print(f"encodings_merged : {encodings_merged}")
+        # print(f"encodings_merged : {encodings_merged}")
 
         encodings = [self._byte_to_idx[b] for encoding in encodings_merged for b in encoding]
 
