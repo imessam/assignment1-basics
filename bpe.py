@@ -20,7 +20,8 @@ class BPE:
         self._vocab_size = vocab_size
 
         self._tok_EOS = "<|endoftext|>"
-        self._special_tokens : List[str] = [self._tok_EOS]
+        self._special_tokens : List[str] = []
+        
 
         self._merges : List[Tuple[bytes, bytes]] = []
         self._idx_to_byte : Dict[int, bytes] = {}
@@ -42,7 +43,11 @@ class BPE:
             self._idx_to_byte = vocab
             self._merges = merges
 
-            self._byte_to_idx = {b : idx for idx, b in self._idx_to_byte.items()}
+            vocab_len = len(vocab)
+
+            self._idx_to_byte.update({idx + vocab_len : special_token.encode() for idx, special_token in enumerate(self._special_tokens)})
+
+            self._byte_to_idx = {b : idx for idx, b in self._idx_to_byte.items()} 
 
 
     def _pretokenize(self, corpus : Iterable[str]) -> List[bytes]:
@@ -52,8 +57,12 @@ class BPE:
         pre_tokens_bytes = []
 
         for sentence in tqdm(corpus, desc = "Pretokenizing ..."):
-            for match in re.finditer(PAT, sentence):
-                pre_tokens_bytes.append(match.group().encode())
+            sentences_wo_spc_tok = re.split(re.escape("|".join(self._special_tokens)), sentence)
+            special_tokens_matches = re.findall(re.escape("|".join(self._special_tokens)), sentence)
+            for sentence_wo_spc_tok , spc_tok in zip(sentences_wo_spc_tok, special_tokens_matches):
+                for match in re.finditer(PAT, sentence_wo_spc_tok):
+                    pre_tokens_bytes.append(match.group().encode())
+                pre_tokens_bytes.append(spc_tok.encode())
 
         return pre_tokens_bytes
 
@@ -81,7 +90,10 @@ class BPE:
         pretokens_bytes : List[tuple[bytes, ...]] = []
 
         for pretoken in tqdm(pretokens, desc= "pretokens to bytes ..."):
-            pretokens_bytes.append(tuple([bytes([ch]) for ch in pretoken]))
+            if pretoken in self._special_tokens:
+                pretokens_bytes.append(tuple(pretoken))
+            else:
+                pretokens_bytes.append(tuple([bytes([ch]) for ch in pretoken]))
 
         return pretokens_bytes
     
@@ -257,11 +269,6 @@ class BPE:
     
     def encode(self, text : str) -> List[int]:
 
-        print("Encoding ... ")
-
-        encodings = []
-
-
         return list(self.encode_iterable([text].__iter__()))
 
 
@@ -272,10 +279,10 @@ class BPE:
         encodings : List[int] = []
 
         pretokens = self._pretokenize(iterable)
-        # print(f"pretokens : {pretokens}")
+        print(f"pretokens : {pretokens}")
 
         pretokens_bytes = self._pretokens_to_bytes(pretokens)
-        # print(f"pretokens_bytes : {pretokens_bytes}")
+        print(f"pretokens_bytes : {pretokens_bytes}")
 
         encodings_merged = self._merge_encodings(pretokens_bytes)
         # print(f"encodings_merged : {encodings_merged}")
@@ -286,7 +293,7 @@ class BPE:
     
     def decode(self, ids: list[int]) -> str :
 
-        print(f"Decoding {ids} ...")
+        # print(f"Decoding {ids} ...")
 
         tokens = b""
 
