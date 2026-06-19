@@ -21,6 +21,7 @@ class BPE:
 
         self._tok_EOS = "<|endoftext|>"
         self._special_tokens : List[str] = []
+        self._special_tokens_bytes : List[bytes] = []
         
 
         self._merges : List[Tuple[bytes, bytes]] = []
@@ -29,6 +30,7 @@ class BPE:
 
         if special_tokens:
             self._special_tokens.extend(special_tokens)
+            self._special_tokens_bytes = [special_token.encode() for special_token in self._special_tokens]
 
         if (not vocab) or (not merges): 
             self._vocab : List[bytes] = [special_token.encode() for special_token in self._special_tokens] +  [bytes([i]) for i in range(256)] 
@@ -57,12 +59,18 @@ class BPE:
         pre_tokens_bytes = []
 
         for sentence in tqdm(corpus, desc = "Pretokenizing ..."):
+
             sentences_wo_spc_tok = re.split(re.escape("|".join(self._special_tokens)), sentence)
             special_tokens_matches = re.findall(re.escape("|".join(self._special_tokens)), sentence)
-            for sentence_wo_spc_tok , spc_tok in zip(sentences_wo_spc_tok, special_tokens_matches):
+
+
+
+            for sentence_wo_spc_tok  in sentences_wo_spc_tok :
                 for match in re.finditer(PAT, sentence_wo_spc_tok):
                     pre_tokens_bytes.append(match.group().encode())
-                pre_tokens_bytes.append(spc_tok.encode())
+
+                if len(special_tokens_matches) > 0:
+                    pre_tokens_bytes.append(special_tokens_matches.pop(0).encode())
 
         return pre_tokens_bytes
 
@@ -90,8 +98,8 @@ class BPE:
         pretokens_bytes : List[tuple[bytes, ...]] = []
 
         for pretoken in tqdm(pretokens, desc= "pretokens to bytes ..."):
-            if pretoken in self._special_tokens:
-                pretokens_bytes.append(tuple(pretoken))
+            if pretoken in self._special_tokens_bytes:
+                pretokens_bytes.append(tuple([pretoken]))
             else:
                 pretokens_bytes.append(tuple([bytes([ch]) for ch in pretoken]))
 
@@ -279,10 +287,10 @@ class BPE:
         encodings : List[int] = []
 
         pretokens = self._pretokenize(iterable)
-        print(f"pretokens : {pretokens}")
+        # print(f"pretokens : {pretokens}")
 
         pretokens_bytes = self._pretokens_to_bytes(pretokens)
-        print(f"pretokens_bytes : {pretokens_bytes}")
+        # print(f"pretokens_bytes : {pretokens_bytes}")
 
         encodings_merged = self._merge_encodings(pretokens_bytes)
         # print(f"encodings_merged : {encodings_merged}")

@@ -19,19 +19,12 @@ if __name__ == "__main__":
 
     tokenizer = BPE.from_files(vocab_path, merges_path, special_tokens=["<|endoftext|>"])
 
-    examples = ["Héllò hôw <|endoftext|><|endoftext|> are ü? 🙃<|endoftext|>"]
+    test_string = "Hello, how are you?"
 
-    # encodings = encode(tokenizer, examples)
-    # encodings_list = list(encodings)
+    reference_ids = tokenizer.encode(test_string)
+    ids = tokenizer.encode(test_string)
+    # assert ids == reference_ids
 
-    # print(f"encodings : {encodings_list}")
-
-    # decoded_str = decode(tokenizer, encodings_list)
-    # print(f"decoded_str : {decoded_str}")
-
-    encoded_ids = tokenizer.encode(examples[0])
-
-    tokenized_string = [tokenizer.decode([x]) for x in encoded_ids]
-
-    print(tokenizer.decode(encoded_ids), tokenized_string, tokenized_string.count("<|endoftext|>"))
+    tokenized_string = [tokenizer.decode([x]) for x in ids]
+    print(tokenized_string)
     
