@@ -17,14 +17,13 @@ if __name__ == "__main__":
     vocab_path = sys.argv[1]
     merges_path = sys.argv[2]
 
-    tokenizer = BPE.from_files(vocab_path, merges_path, special_tokens=["<|endoftext|>"])
+    tokenizer = BPE.from_files(vocab_path, merges_path, special_tokens=["<|endoftext|>", "<|endoftext|><|endoftext|>"])
 
-    test_string = "Hello, how are you?"
+    test_string = "Hello, how <|endoftext|><|endoftext|> are you?<|endoftext|>"
 
-    reference_ids = tokenizer.encode(test_string)
     ids = tokenizer.encode(test_string)
-    # assert ids == reference_ids
-
     tokenized_string = [tokenizer.decode([x]) for x in ids]
-    print(tokenized_string)
+    print(tokenized_string, tokenizer.decode(ids))
+    # Test roundtrip
+
     

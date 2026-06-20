@@ -45,11 +45,21 @@ class BPE:
             self._idx_to_byte = vocab
             self._merges = merges
 
-            vocab_len = len(vocab)
-
-            self._idx_to_byte.update({idx + vocab_len : special_token.encode() for idx, special_token in enumerate(self._special_tokens)})
-
             self._byte_to_idx = {b : idx for idx, b in self._idx_to_byte.items()} 
+
+            count = len(vocab)
+
+            for special_token in self._special_tokens_bytes:
+
+                if special_token not in self._byte_to_idx:
+
+                    self._idx_to_byte[count] = special_token
+                    self._byte_to_idx[special_token] = count
+
+                    count += 1
+        
+
+            # print(self._special_tokens, self._byte_to_idx)
 
 
     def _pretokenize(self, corpus : Iterable[str]) -> List[bytes]:
@@ -57,13 +67,12 @@ class BPE:
         PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
         pre_tokens_bytes = []
+        sentences_wo_spc_tok = []
 
         for sentence in tqdm(corpus, desc = "Pretokenizing ..."):
-
+            
             sentences_wo_spc_tok = re.split(re.escape("|".join(self._special_tokens)), sentence)
-            special_tokens_matches = re.findall(re.escape("|".join(self._special_tokens)), sentence)
-
-
+            special_tokens_matches = re.findall(re.escape("|".join(self._special_tokens),), sentence)
 
             for sentence_wo_spc_tok  in sentences_wo_spc_tok :
                 for match in re.finditer(PAT, sentence_wo_spc_tok):
