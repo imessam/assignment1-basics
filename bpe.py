@@ -221,7 +221,6 @@ class BPE:
 
             is_merged = False
             encodings_merged.clear()
-            print(encodings_old)
 
             for pretoken in encodings_old:
 
@@ -238,9 +237,8 @@ class BPE:
 
                         pair_byte = pretoken[idx] + pretoken[idx + 1]
 
-                        print(pair_byte)
                     if pair_byte and pair_byte in self._byte_to_idx:
-                            print("found")
+                            new_pretoken.append(pair_byte)
                             idx += 1
                             is_merged = True
                     else:
