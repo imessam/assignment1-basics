@@ -20,7 +20,7 @@ class BPE:
         self._vocab_size = vocab_size
 
         self._tok_EOS = "<|endoftext|>"
-        self._special_tokens : List[str] = []
+        self._special_tokens : List[str] = [self._tok_EOS]
         self._special_tokens_bytes : List[bytes] = []
         
 
@@ -29,7 +29,11 @@ class BPE:
         self._byte_to_idx : Dict[bytes, int] = {}
 
         if special_tokens:
-            self._special_tokens.extend(special_tokens)
+            
+            for spc_token in special_tokens:
+                if spc_token not in self._special_tokens:
+                    self._special_tokens.append(spc_token)
+
             self._special_tokens_bytes = [special_token.encode() for special_token in self._special_tokens]
 
         if (not vocab) or (not merges): 
@@ -61,8 +65,20 @@ class BPE:
 
             # print(self._special_tokens, self._byte_to_idx)
 
+    def _pretokenize_train(self, corpus : Iterable[str]) -> List[bytes]:
 
-    def _pretokenize(self, corpus : Iterable[str]) -> List[bytes]:
+        PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+
+        pre_tokens_bytes = []
+
+        for sentence in tqdm(corpus, desc = "Pretokenizing ..."):
+            
+            for match in re.finditer(PAT, sentence):
+                pre_tokens_bytes.append(match.group().encode())
+
+        return pre_tokens_bytes
+
+    def _pretokenize_encode(self, corpus : Iterable[str]) -> List[bytes]:
 
         PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -205,6 +221,7 @@ class BPE:
 
             is_merged = False
             encodings_merged.clear()
+            print(encodings_old)
 
             for pretoken in encodings_old:
 
@@ -221,8 +238,9 @@ class BPE:
 
                         pair_byte = pretoken[idx] + pretoken[idx + 1]
 
+                        print(pair_byte)
                     if pair_byte and pair_byte in self._byte_to_idx:
-                            new_pretoken.append(pair_byte)
+                            print("found")
                             idx += 1
                             is_merged = True
                     else:
@@ -260,7 +278,7 @@ class BPE:
 
         t1 = time.perf_counter()
 
-        pre_tokens_bytes = self._pretokenize(corpus)
+        pre_tokens_bytes = self._pretokenize_train(corpus)
         words_bytes_count = self._count(pre_tokens_bytes)
 
         t2 = time.perf_counter()
@@ -295,7 +313,7 @@ class BPE:
 
         encodings : List[int] = []
 
-        pretokens = self._pretokenize(iterable)
+        pretokens = self._pretokenize_encode(iterable)
         # print(f"pretokens : {pretokens}")
 
         pretokens_bytes = self._pretokens_to_bytes(pretokens)
@@ -309,8 +327,6 @@ class BPE:
         return encodings.__iter__()
     
     def decode(self, ids: list[int]) -> str :
-
-        # print(f"Decoding {ids} ...")
 
         tokens = b""
 
