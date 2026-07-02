@@ -217,15 +217,18 @@ class BPE:
 
         is_merged = True
 
-        while is_merged:
+        for pretoken in encodings_old:
 
-            is_merged = False
-            encodings_merged.clear()
+            is_merged = True
+            curr_pretoken = list(pretoken)
 
-            for pretoken in encodings_old:
+            while is_merged:
+
+                is_merged = False
 
                 new_pretoken = []
-                num_bytes = len(pretoken)
+                
+                num_bytes = len(curr_pretoken)
 
                 idx = 0
 
@@ -233,23 +236,22 @@ class BPE:
 
                     pair_byte = None
 
-                    if idx < (len(pretoken) - 1) :
+                    if idx < (len(curr_pretoken) - 1) :
 
-                        pair_byte = pretoken[idx] + pretoken[idx + 1]
+                        pair_byte = curr_pretoken[idx] + curr_pretoken[idx + 1]
 
                     if pair_byte and pair_byte in self._byte_to_idx:
                             new_pretoken.append(pair_byte)
                             idx += 1
                             is_merged = True
                     else:
-                        new_pretoken.append(pretoken[idx])
+                        new_pretoken.append(curr_pretoken[idx])
 
                     idx += 1
+                
+                curr_pretoken = new_pretoken
 
-                encodings_merged.append(tuple(new_pretoken))
-            
-            encodings_old = encodings_merged.copy()
-
+            encodings_merged.append(tuple(new_pretoken))
 
         return encodings_merged
     

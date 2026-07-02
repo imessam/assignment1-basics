@@ -284,19 +284,8 @@ def test_address_matches_tiktoken():
     with open(corpus_path) as f:
         corpus_contents = f.read()
 
-    corpus_contents = " government"
     reference_ids = reference_tokenizer.encode(corpus_contents)
     ids = tokenizer.encode(corpus_contents)
-
-    print(len(ids), len(reference_ids))
-
-    for id in ids:
-        if id not in reference_ids:
-            print(f"{id} : {tokenizer.decode([id])} not found in ref ")
-
-    for id in reference_ids:
-        if id not in ids:
-            print(f"{id} : {reference_tokenizer.decode([id])} not found in ids ")
 
     assert ids == reference_ids
 
