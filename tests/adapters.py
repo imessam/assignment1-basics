@@ -11,6 +11,7 @@ from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
 from bpe import BPE
+from transformer.linear import Linear
 
 
 def run_linear(
@@ -32,7 +33,11 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
 
-    raise NotImplementedError
+    linear_layer = Linear(in_features = d_in, out_features = d_out)
+
+    linear_layer.load_state_dict({"w1":weights}, strict = False)
+
+    return linear_layer(in_features)
 
 
 def run_embedding(
