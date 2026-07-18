@@ -14,6 +14,7 @@ from bpe import BPE
 from transformer.linear import Linear
 from transformer.embedding import Embedding
 from transformer.rms_norm import RMSNorm
+from transformer.swiglu import SwiGLU
 
 
 def run_linear(
@@ -97,7 +98,14 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
-    raise NotImplementedError
+
+    swi_glu = SwiGLU(d_model = d_model, d_ff = d_ff)
+
+    swi_glu.linear_1.w1.data = w1_weight
+    swi_glu.linear_2.w1.data = w2_weight
+    swi_glu.linear_3.w1.data = w3_weight
+
+    return swi_glu(in_features)
 
 
 def run_scaled_dot_product_attention(
