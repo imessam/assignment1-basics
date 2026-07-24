@@ -34,8 +34,8 @@ class RoPE(nn.Module):
                 exp = ((2 * k) - 2) / d_k
                 angle_i_k = idx / (theta**exp)
 
-                idx_1 = 2 * (k - 1) - 1
-                idx_2 = 2 * (k - 1)
+                idx_2 = (2 * k) - 1
+                idx_1 = idx_2 - 1
 
                 self.R[idx, idx_1, idx_1] = math.cos(angle_i_k)
                 self.R[idx, idx_1, idx_2] = -math.sin(angle_i_k)
@@ -48,19 +48,16 @@ class RoPE(nn.Module):
 
     def forward(self, x : torch.Tensor, token_positions : torch.Tensor) -> torch.Tensor:
 
-        # if len(token_positions.shape) > 1:
-        #     batch_size, seq_len = token_positions.shape
-        # else:
-        #     batch_size = 1
-        #     seq_len = token_positions.shape[0]
+        print(x.shape, token_positions.shape)
 
+        batch_size, seq_len, d_k=  x.shape
 
         out : torch.Tensor = torch.zeros(size = x.shape, device = self._device)
 
         for batch in range(batch_size):
-            r_sliced = self.R[token_positions[batch]]
-            x_sliced = x[batch, token_positions[batch]]
-            print(r_sliced.shape)
+            r_sliced = self.R[token_positions]
+            x_sliced = x[batch, token_positions]
+            print(r_sliced.shape, x_sliced.shape)
 
             out[batch] = einops.einsum(r_sliced, x_sliced, "seq_len d_k d_k, seq_len d_k -> seq_len d_k")
 
