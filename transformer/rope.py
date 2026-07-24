@@ -26,40 +26,41 @@ class RoPE(nn.Module):
         
         self._device = device
 
-        self.R = torch.zeros(size = (max_seq_len, d_k, d_k), device = device)
+        self.pos = torch.arange(max_seq_len)
 
-        for idx in range(max_seq_len):
-            for k in range(1, (d_k//2) + 1):
+        self.expo = (2 * torch.arange(0, d_k // 2)) / d_k
 
-                exp = ((2 * k) - 2) / d_k
-                angle_i_k = idx / (theta**exp)
+        self.angles = torch.zeros(size = (max_seq_len, d_k // 2))
 
-                idx_2 = (2 * k) - 1
-                idx_1 = idx_2 - 1
-
-                self.R[idx, idx_1, idx_1] = math.cos(angle_i_k)
-                self.R[idx, idx_1, idx_2] = -math.sin(angle_i_k)
-                self.R[idx, idx_2, idx_1] = math.sin(angle_i_k)
-                self.R[idx, idx_2, idx_2] = math.cos(angle_i_k)
+        for pos in self.pos:
+            self.angles[pos] = pos / (theta ** self.expo)
 
 
-        self.register_buffer(name = "R_mat", tensor = self.R, persistent = False)
-        
+        self.sin = torch.sin(self.angles)
+        self.cos = torch.cos(self.angles)
+
+    
 
     def forward(self, x : torch.Tensor, token_positions : torch.Tensor) -> torch.Tensor:
-
-        print(x.shape, token_positions.shape)
 
         batch_size, seq_len, d_k=  x.shape
 
         out : torch.Tensor = torch.zeros(size = x.shape, device = self._device)
 
         for batch in range(batch_size):
-            r_sliced = self.R[token_positions]
-            x_sliced = x[batch, token_positions]
-            print(r_sliced.shape, x_sliced.shape)
+            for pos in token_positions:
+    
+                x_i = x[batch, pos]
+                cos_i = self.cos[pos]
+                sin_i = self.sin[pos]
 
-            out[batch] = einops.einsum(r_sliced, x_sliced, "seq_len d_k d_k, seq_len d_k -> seq_len d_k")
+                for k in range(0, d_k // 2):
+
+                    idx_1 = 2 * k
+                    idx_2 = idx_1 + 1
+
+                    out[batch, pos, idx_1] = (cos_i[k] * x_i[idx_1]) - (sin_i[k] * x_i[idx_2])
+                    out[batch, pos, idx_2] = (sin_i[k] * x_i[idx_1]) + (cos_i[k] * x_i[idx_2])
 
         return out
     
@@ -73,7 +74,7 @@ if __name__ == "__main__":
     d_model = 128
 
     x = torch.rand( size = (batch_size, seq_len, d_model))
-    token_positions = torch.randint(low = 0, high = seq_len, size = (batch_size, seq_len))
+    token_positions = torch.randint(low = 0, high = seq_len, size = (1, seq_len)).squeeze(0)
 
     rope = RoPE(theta = 0.5, d_k = d_model, max_seq_len = seq_len)
 
