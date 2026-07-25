@@ -1,11 +1,6 @@
 import torch
 
 from torch import nn
-from typing import Union
-
-from transformer.linear import Linear
-
-
 
 class Softmax(nn.Module):
 
