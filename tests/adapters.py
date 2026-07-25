@@ -16,6 +16,7 @@ from transformer.embedding import Embedding
 from transformer.rms_norm import RMSNorm
 from transformer.swiglu import SwiGLU
 from transformer.rope import RoPE
+from transformer.softmax import Softmax
 
 
 def run_linear(
@@ -462,7 +463,8 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+
+    return Softmax()(in_features, dim)
 
 
 def run_cross_entropy(
