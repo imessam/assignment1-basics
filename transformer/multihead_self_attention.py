@@ -1,10 +1,6 @@
-import math
-
 import torch
-import einops
 
 from torch import inf, nn
-from typing import Union
 
 from transformer.rope import RoPE
 from transformer.scaled_dot_product import ScaledDotProduct
@@ -16,8 +12,8 @@ class MultiHeadSelfAttention(nn.Module):
             self,
             d_model : int,
             num_heads : int,
-            theta : int,
             max_seq_len : int,
+            theta : int = 1000,
             ) -> None:
         
         super().__init__()
@@ -44,20 +40,29 @@ class MultiHeadSelfAttention(nn.Module):
         attn_scores = torch.Tensor()
 
         q : torch.Tensor = self._wq(x)
-        q_h = q.view(size = (self._num_heads, batch_size, seq_len, -1))
+        q_h = q.view(size = (batch_size, self._num_heads, seq_len, -1))
         print(f"q : {q.shape} , q_h : {q_h.shape}")
 
         k = self._wk(x)
-        k_h = k.view(size = (self._num_heads, batch_size, seq_len, -1))
+        k_h = k.view(size = (batch_size, self._num_heads, seq_len, -1))
         print(f"k : {k.shape} , k_h : {k_h.shape}")
 
         v = self._wv(x)
-        v_h = v.view(size = (self._num_heads, batch_size, seq_len, -1))
+        v_h = v.view(size = (batch_size, self._num_heads, seq_len, -1))
         print(f"v : {v.shape} , v_h : {v_h.shape}")
 
-        return attn_scores
-    
+        masks = torch.triu(torch.ones(size = (batch_size, self._num_heads, seq_len, seq_len)), diagonal = 1)
+        masks = torch.where(masks == 0, True, False)
+        print(f"masks : {masks.shape}")
 
+        attn_scores_h : torch.Tensor = self._scaled_dot_product(q_h, k_h, v_h, masks)
+        print(f"attn_scores_h : {attn_scores_h.shape}")
+
+        attn_scores = attn_scores_h.view(batch_size, seq_len, -1)
+        print(f"attn_scores : {attn_scores.shape}")
+
+        return self._wo(attn_scores)
+    
 
 if __name__ == "__main__":
 
@@ -65,10 +70,10 @@ if __name__ == "__main__":
     seq_len = 256
     d_model = 64
     num_heads = 4
+
     theta = 10000
 
-
-    x = torch.rand( size = (batch_size, seq_len, d_model))
+    x = torch.rand(size = (batch_size, seq_len, d_model))
 
     multi_head_self_attention = MultiHeadSelfAttention(d_model = d_model, num_heads = num_heads, theta = theta, max_seq_len = seq_len)
 
