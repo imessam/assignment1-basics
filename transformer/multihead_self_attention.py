@@ -51,7 +51,7 @@ class MultiHeadSelfAttention(nn.Module):
         v_h = v.view(size = (batch_size, self._num_heads, seq_len, -1))
         print(f"v : {v.shape} , v_h : {v_h.shape}")
 
-        masks = torch.triu(torch.ones(size = (batch_size, self._num_heads, seq_len, seq_len)), diagonal = 1)
+        masks = torch.triu(torch.ones(size = (seq_len, seq_len)), diagonal = 1)
         masks = torch.where(masks == 0, True, False)
         print(f"masks : {masks.shape}")
 
