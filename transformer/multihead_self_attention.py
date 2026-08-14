@@ -1,3 +1,5 @@
+from typing import Union
+
 import torch
 
 from torch import inf, nn
@@ -38,16 +40,19 @@ class MultiHeadSelfAttention(nn.Module):
             self,
             d_model : int,
             num_heads : int,
-            max_seq_len : int,
-            theta : int = 1000,
+            max_seq_len : Union[int, None] = None,
+            theta : Union[float, None] = None,
             ) -> None:
         
         super().__init__()
 
         self._d_model = d_model
         self._num_heads = num_heads
+
         self._theta = theta
         self._max_seq_len = max_seq_len
+        self._rope : Union[RoPE, None] = None
+
 
         self._d_k, self._d_v = self._d_model // self._num_heads , self._d_model // self._num_heads
 
@@ -56,12 +61,13 @@ class MultiHeadSelfAttention(nn.Module):
         self._wv = Linear(in_features = self._d_model , out_features = (self._num_heads * self._d_v))
         self._wo = Linear(in_features = (self._num_heads * self._d_v), out_features = self._d_model)
 
-        self._rope = RoPE(theta = self._theta, d_k = self._d_k, max_seq_len = self._max_seq_len)
-        # self._scaled_dot_product = ScaledDotProduct()
+        if self._theta is not None and self._max_seq_len is not None:
+
+            self._rope = RoPE(theta = self._theta, d_k = self._d_k, max_seq_len = self._max_seq_len)
 
         self._multihead = MultiHead()
 
-    def forward(self, x : torch.Tensor) -> torch.Tensor:
+    def forward(self, x : torch.Tensor, tok_pos : Union[torch.Tensor, None] = None) -> torch.Tensor:
 
         batch_size, seq_len, d_model = x.shape
 
@@ -70,24 +76,29 @@ class MultiHeadSelfAttention(nn.Module):
         q : torch.Tensor = self._wq(x)
         q = q.view(size = (batch_size, seq_len, self._num_heads, -1))
         q = q.transpose(1, 2)
+
+        if self._rope is not None:
+
+            q = self._rope(q.contiguous().view(size = (batch_size * self._num_heads, seq_len,  -1)), tok_pos)
+            q = q.view(size = (batch_size, self._num_heads, seq_len, -1))
+
         print(f"q : {q.shape}")
 
         k : torch.Tensor = self._wk(x)
         k = k.view(size = (batch_size, seq_len, self._num_heads, -1))
         k = k.transpose(1, 2)
+
+        if self._rope is not None:
+
+            k = self._rope(k.contiguous().view(size = (batch_size * self._num_heads, seq_len,  -1)), tok_pos)
+            k = k.view(size = (batch_size, self._num_heads, seq_len, -1))
+
         print(f"k : {k.shape}")
 
         v : torch.Tensor = self._wv(x)
         v = v.view(size = (batch_size, seq_len, self._num_heads, -1))
         v = v.transpose(1, 2)
         print(f"v : {v.shape} ")
-
-        # masks = torch.triu(torch.ones(size = (seq_len, seq_len)), diagonal = 1)
-        # masks = torch.where(masks == 0, True, False)
-        # print(f"masks : {masks.shape}")
-
-        # attn_scores_h : torch.Tensor = self._scaled_dot_product(q_h, k_h, v_h, masks)
-        # print(f"attn_scores_h : {attn_scores_h.shape}")
 
         attn_scores_multi : torch.Tensor = self._multihead(q, k, v)
         attn_scores_multi = attn_scores_multi.transpose(1, 2)
@@ -106,12 +117,14 @@ if __name__ == "__main__":
     d_model = 64
     num_heads = 4
 
+    tok_pos = torch.randint(low = 0, high = seq_len, size = (1, seq_len)).squeeze(0)
+
     theta = 10000
 
     x = torch.rand(size = (batch_size, seq_len, d_model))
 
-    multi_head_self_attention = MultiHeadSelfAttention(d_model = d_model, num_heads = num_heads, theta = theta, max_seq_len = seq_len)
+    multi_head_self_attention = MultiHeadSelfAttention(d_model = d_model, num_heads = num_heads, max_seq_len = seq_len, theta= theta)
 
-    out = multi_head_self_attention(x)
+    out = multi_head_self_attention(x, tok_pos)
 
     print(out.shape)

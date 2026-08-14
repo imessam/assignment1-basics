@@ -40,6 +40,9 @@ class RoPE(nn.Module):
 
     def forward(self, x : torch.Tensor, token_positions : torch.Tensor) -> torch.Tensor:
 
+        if len(token_positions.shape) > 1:
+            token_positions = token_positions.squeeze(0)
+
         batch_size, seq_len, d_k =  x.shape
 
         out : torch.Tensor = torch.zeros(size = x.shape, device = self._device)
